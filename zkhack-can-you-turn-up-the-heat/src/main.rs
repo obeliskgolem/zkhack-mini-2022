@@ -1,15 +1,15 @@
 use prompt::{puzzle, welcome};
 use winterfell::{
     math::{fields::f128::BaseElement as Felt, FieldElement},
-    Air, AirContext, Assertion, TraceTable, FieldExtension, HashFunction, ProofOptions, Prover,
-    Serializable, TraceInfo, TransitionConstraintDegree, StarkProof, ByteWriter, EvaluationFrame, Trace
+    Air, AirContext, Assertion, ByteWriter, EvaluationFrame, FieldExtension, HashFunction,
+    ProofOptions, Prover, Serializable, StarkProof, Trace, TraceInfo, TraceTable,
+    TransitionConstraintDegree,
 };
-
 
 // PROOF
 // ================================================================================================
 
-/// This is a proof for the correct 32nd term of the Fibonacci sequence; replace it with your 
+/// This is a proof for the correct 32nd term of the Fibonacci sequence; replace it with your
 /// fake proof. NOTE: to build a fake proof you will need to modify Winterfell prover code.
 const PROOF: &str = "\
 02040000100100000000d3ffffffffffffffffffff010800020104058000160bbea2c10bf0e34d992f72cbada22028e203\
@@ -45,32 +45,45 @@ b849109327d6a6ed3f1d73c561f9eab850015afb5bb48fad7cfb601c5337ac6594686f7875739cab
 f07a3a8879ed1c3be8b1874a6b476a0f2a00c4b9987d168a815774682abfc166c98f6554d1a6b7d26b50d16740e2d389d7\
 c48273872bdcc9cc79b790e7f6f5cbd06bd27cd9000100000000000000";
 
-fn make_fake_proof(options: &ProofOptions) {
+fn make_fake_proof(options: &ProofOptions) -> Option<StarkProof> {
     println!("|----------------fake start---------------|");
     let start = (Felt::ZERO, Felt::ONE);
 
-    let pub_inputs = FibInputs { start, end: Felt::new(123) };
+    let pub_inputs = FibInputs {
+        start,
+        end: Felt::new(123),
+    };
+
+    let mut acc = 0;
 
     let fake_prover = FibProver::new(options.clone());
 
-    for i in 0..=1 {
-        let fake_trace = FibProver::build_trace(start, 32);
+    let mut result = None;
+
+    for i in 0..10000 {
+        let fake_trace = FibProver::build_incorrect_trace(start, 32, i as u32);
         let fake_proof = fake_prover.prove(fake_trace).expect("cannot build proof");
         let e = winterfell::verify::<FibAir>(fake_proof.clone(), pub_inputs.clone());
-        println!("in fake proof, e = {:?}", e);
         if e.is_ok() {
-            println!("=================================congrats, i = {}=============================", i);
+            println!("=================================congrats, you find a fake proof, i = {} =============================", i);
+            println!("fake_proof[{}] = {:?}", acc, hex::encode(fake_proof.to_bytes()));
+            println!("==============================================================");
+
+            result = Some(fake_proof);
+            acc += 1;
+            if acc > 50 {
+                break;
+            }
         }
     }
 
-    println!("|----------------fake end---------------|\n");
+    return result;
 }
 
 // MAIN FUNCTION
 // ================================================================================================
 
 pub fn main() {
-
     welcome();
     puzzle(PUZZLE_DESCRIPTION);
 
@@ -82,20 +95,26 @@ pub fn main() {
     // deserialize proof
     let proof_bytes = hex::decode(PROOF).unwrap();
     let proof = StarkProof::from_bytes(&proof_bytes).unwrap();
-    
+
     // initialize public inputs; if we set `end` to 832040 (which is the actual 32nd term of the
     // Fibonacci sequence) the current valid proof will pass.
     // let pub_inputs = FibInputs { start, end: Felt::new(123) };
-    let pub_inputs = FibInputs { start, end: Felt::new(832040) };
+    let pub_inputs = FibInputs {
+        start,
+        end: Felt::new(832040),
+    };
+
+    let fake_pub_inputs = FibInputs {
+        start,
+        end: Felt::new(123),
+    };
 
     let proof_options = proof.options();
-    make_fake_proof(proof_options);
-
-    let e = winterfell::verify::<FibAir>(proof, pub_inputs);
-    println!("e = {:?}", e);
+    let fake_proof = make_fake_proof(proof_options).unwrap();
 
     // verify the proof; make sure your fake proof doesn't fail this assertion
-    // assert!(winterfell::verify::<FibAir>(proof, pub_inputs).is_ok());    
+    assert!(winterfell::verify::<FibAir>(proof, pub_inputs).is_ok());
+    assert!(winterfell::verify::<FibAir>(fake_proof, fake_pub_inputs).is_ok());
 }
 
 // FIBONACCI FUNCTION
@@ -192,13 +211,11 @@ struct FibProver {
 }
 
 impl FibProver {
-
     pub fn new(options: ProofOptions) -> Self {
         Self { options }
     }
 
     pub fn build_trace(start: (Felt, Felt), n: usize) -> TraceTable<Felt> {
-        
         let mut trace = TraceTable::new(2, n / 2);
         trace.fill(
             |state| {
@@ -210,11 +227,27 @@ impl FibProver {
                 state[1] += state[0];
             },
         );
-        trace.set(0, 15, 123u32.into());
 
         trace
     }
 
+    pub fn build_incorrect_trace(start: (Felt, Felt), n: usize, i: u32) -> TraceTable<Felt> {
+        let mut trace = TraceTable::new(2, n / 2);
+        trace.fill(
+            |state| {
+                state[0] = start.0;
+                state[1] = start.1;
+            },
+            |_, state| {
+                state[0] += state[1];
+                state[1] += state[0];
+            },
+        );
+
+        trace.set(0, 15, i.into());
+
+        trace
+    }
 }
 
 impl Prover for FibProver {
