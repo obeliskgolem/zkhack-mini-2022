@@ -71,7 +71,7 @@ fn make_fake_proof(options: &ProofOptions) -> Option<StarkProof> {
 
             result = Some(fake_proof);
             acc += 1;
-            if acc > 50 {
+            if acc > 10 {
                 break;
             }
         }
