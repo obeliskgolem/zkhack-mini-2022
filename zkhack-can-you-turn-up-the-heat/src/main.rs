@@ -60,7 +60,8 @@ fn make_fake_proof(options: &ProofOptions) -> Option<StarkProof> {
 
     let mut result = None;
 
-    for i in 0..10000 {
+    for i in 5000..10000 {
+        // let i = 173;
         let fake_trace = FibProver::build_incorrect_trace(start, 32, i as u32);
         let fake_proof = fake_prover.prove(fake_trace).expect("cannot build proof");
         let e = winterfell::verify::<FibAir>(fake_proof.clone(), pub_inputs.clone());
@@ -70,12 +71,11 @@ fn make_fake_proof(options: &ProofOptions) -> Option<StarkProof> {
             println!("==============================================================");
 
             result = Some(fake_proof);
-            acc += 1;
-            if acc > 10 {
-                break;
-            }
+            break;
         }
     }
+
+    println!("|----------------fake end---------------|");
 
     return result;
 }
