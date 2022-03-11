@@ -10,4 +10,4 @@ path = "src/main.rs"
 [dependencies]
 hex = { version = "0.4" }
 prompt = { git = "https://github.com/kobigurk/zkhack-prompt" }
-winterfell = { version = "0.3", features = ["concurrent"] }
+winterfell = { path = "../zkhack-can-you-turn-up-the-heat-winterfell/winterfell", version = "0.3", features = ["concurrent"] }
